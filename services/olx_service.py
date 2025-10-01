@@ -2,9 +2,18 @@
 import requests
 import streamlit as st
 
-def fetch_olx_data(bearer_token):
-    # (Conteúdo idêntico ao da resposta anterior, sem alterações)
+# MUDANÇA: A função agora aceita um número de página
+def fetch_olx_data(bearer_token, page=1):
+    """
+    Faz uma chamada à API GraphQL do OLX para obter os dados dos anúncios.
+    Agora suporta paginação.
+    """
     endpoint_url = "https://www.olx.pt/apigateway/graphql"
+
+    # MUDANÇA: Define o limite e calcula o offset
+    limit = 50
+    offset = (page - 1) * limit
+
     query = """
     query ListingSearchQuery($searchParameters: [SearchParameter!]!) {
       clientCompatibleListings(searchParameters: $searchParameters) {
@@ -15,11 +24,28 @@ def fetch_olx_data(bearer_token):
       }
     }
     """
-    variables = {"searchParameters": [{"key": "limit", "value": "20"}, {"key": "query", "value": "trespasse negocio"}, {"key": "category_id", "value": "4787"}]}
-    headers = {"Authorization": bearer_token, "Content-Type": "application/json"}
+
+    # MUDANÇA: Atualiza os valores de 'limit' e 'offset' no payload
+    variables = {
+        "searchParameters": [
+            {"key": "offset", "value": str(offset)},
+            {"key": "limit", "value": str(limit)},
+            {"key": "query", "value": "trespasse negocio"},
+            {"key": "category_id", "value": "4787"}
+        ]
+    }
+
+    headers = {
+        "Authorization": bearer_token,
+        "Content-Type": "application/json"
+    }
 
     try:
-        response = requests.post(endpoint_url, json={"query": query, "variables": variables}, headers=headers)
+        response = requests.post(
+            endpoint_url,
+            json={"query": query, "variables": variables},
+            headers=headers
+        )
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
