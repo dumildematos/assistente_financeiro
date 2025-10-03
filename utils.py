@@ -4,51 +4,48 @@ import streamlit as st
 
 def normalize_data(source, raw_data):
     """
-    Converte os dados brutos de diferentes fontes para um formato padrão.
+    Converts raw data from different sources into a standard format.
+    Now handles 'null' responses from the API.
     """
     normalized_list = []
-    st.write(f"Normalizando dados da fonte: {source}")
-    st.write(json.dumps(raw_data, indent=2, ensure_ascii=False))  # Debug: Mostrar dados brutos
+    
     if source == "OLX":
-        listings = raw_data.get("data", {}).get("clientCompatibleListings", {}).get("data", [])
-        for item in listings:
-            price_label = "A consultar"
-            for param in item.get("params", []):
-                if param.get("key") == "price":
-                    price_label = param.get("value", {}).get("label", "A consultar")
-                    break
-            
-            images = []
-            for photo in item.get("photos", []):
-                link = photo.get("link")
-                if link:
-                    images.append(link.replace("{width}x{height}", "400x300"))
-            
-            normalized_list.append({
-                "title": item.get("title"),
-                "price": price_label,
-                "location": item.get("location", {}).get("city", {}).get("name"),
-                "url": item.get("url"),
-                "images": images,
-                "videos": [] # Placeholder para vídeos
-            })
-            
-    elif source == "Idealista (Exemplo)":
-        listings = raw_data.get("elementList", [])
-        for item in listings:
-            images = [photo['url'] for photo in item.get('multimedia', []) if photo.get('url')]
-            
-            normalized_list.append({
-                "title": f"{item.get('propertyType', '')} em {item.get('address', '')}",
-                "price": f"€ {item.get('price', 0):,}".replace(",", "."),
-                "location": item.get('municipality'),
-                "url": item.get('url'),
-                "images": images,
-                "videos": [] # Placeholder para vídeos
-            })
+        # --- MUDANÇA: Adiciona uma verificação de segurança ---
+        client_listings = raw_data.get("data", {}).get("clientCompatibleListings")
+        
+        # Só prossegue se 'client_listings' não for None
+        if client_listings:
+            listings = client_listings.get("data", [])
+            for item in listings:
+                # ... (o resto da lógica de normalização não muda)
+                price_label = "A consultar"
+                for param in item.get("params", []):
+                    if param.get("key") == "price":
+                        price_label = param.get("value", {}).get("label", "A consultar")
+                        break
+                
+                images = []
+                for photo in item.get("photos", []):
+                    link = photo.get("link")
+                    if link:
+                        images.append(link.replace("{width}x{height}", "400x300"))
+                
+                normalized_list.append({
+                    "title": item.get("title"),
+                    "price": price_label,
+                    "location": item.get("location", {}).get("city", {}).get("name"),
+                    "url": item.get("url"),
+                    "images": images
+                })
+        else:
+            # Mostra o erro da API na interface do Streamlit
+            api_errors = raw_data.get("errors")
+            if api_errors:
+                st.error(f"A API do OLX retornou um erro: {api_errors[0]['message']}")
+
+    # ... (lógica para outras fontes)
 
     return normalized_list
-
 def find_details_for_response(response_text, normalized_listings):
     """
     Verifica o texto de resposta para nomes de negócios e retorna os detalhes
