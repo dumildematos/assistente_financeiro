@@ -1,7 +1,7 @@
 # app.py
 import streamlit as st
 import logging
-import secrets # Importa a biblioteca para o parâmetro 'state'
+import secrets
 
 from config import get_gemini_api_key
 from services.olx_service import get_olx_token, fetch_olx_data
@@ -19,28 +19,43 @@ setup_page()
 if "page_number" not in st.session_state: st.session_state.page_number = 1
 if "olx_token" not in st.session_state: st.session_state.olx_token = None
 if "oauth_state" not in st.session_state: st.session_state.oauth_state = None
+if "user_name" not in st.session_state: st.session_state.user_name = None
 
 # --- 2. SIDEBAR E ENTRADAS DO UTILIZADOR ---
 api_key = get_gemini_api_key()
-st.sidebar.divider()
 
-st.sidebar.subheader("Fontes dos Anúncios")
-use_olx = st.sidebar.checkbox("OLX", value=True)
-use_idealista = st.sidebar.checkbox("Idealista (Exemplo)")
-st.session_state.only_olx_selected = use_olx and not use_idealista
-
-selected_model = None
-# ...(código do seletor de modelo Gemini inalterado)...
-if api_key:
-    model_options = get_available_models(api_key)
-    if model_options:
-        default_model = "gemini-pro-latest"
-        try:
-            default_index = model_options.index(default_model)
-        except ValueError:
-            default_index = 0
-        selected_model = st.sidebar.selectbox("Escolha o Modelo Gemini", options=model_options, index=default_index)
-# ...
+# Painel de autenticação e boas-vindas na sidebar
+with st.sidebar:
+    st.divider()
+    if st.session_state.user_name:
+        st.success(f"Autenticado como: **{st.session_state.user_name}**")
+        if st.button("Logout do OLX", use_container_width=True):
+            st.session_state.olx_token = None
+            st.session_state.user_name = None
+            st.query_params.clear()
+            st.rerun()
+    st.divider()
+    
+    st.subheader("Fontes dos Anúncios")
+    use_olx = st.checkbox("OLX", value=True)
+    use_idealista = st.checkbox("Idealista (Exemplo)")
+    st.session_state.only_olx_selected = use_olx and not use_idealista
+    
+    selected_model = None
+    if api_key:
+        model_options = get_available_models(api_key)
+        if model_options:
+            default_model = "gemini-pro-latest"
+            try:
+                default_index = model_options.index(default_model)
+            except ValueError:
+                default_index = 0
+            selected_model = st.selectbox("Escolha o Modelo Gemini", options=model_options, index=default_index)
+        else:
+            st.error("Não foi possível obter os modelos.")
+    else:
+        st.warning("Insira uma chave de API para ver os modelos.")
+    st.divider()
 
 if not api_key or not selected_model:
     st.info("Por favor, insira a sua chave de API Gemini e escolha um modelo para começar.")
@@ -68,7 +83,6 @@ if use_olx:
         st.stop()
 
     AUTHORIZE_URL = "https://www.olx.pt/oauth/authorize"
-    # CORREÇÃO CRÍTICA: O REDIRECT_URI deve ser o URL da sua aplicação.
     REDIRECT_URI = st.get_option("server.baseUrlPath").strip('/')
 
     if st.session_state.olx_token:
@@ -78,31 +92,31 @@ if use_olx:
             olx_listings = normalize_data("OLX", dados_brutos)
             listings_normalizados.extend(olx_listings)
             dados_carregados = True
-        else:
+        elif not use_idealista: # Só mostra o aviso se não houver outros dados
             st.warning("Não foi possível obter os dados do OLX. O seu token pode ter expirado.")
-            if st.sidebar.button("Reautenticar"):
-                st.session_state.olx_token = None
-                st.rerun()
+            # O botão de logout já está permanentemente visível na sidebar
     else:
         auth_code = st.query_params.get("code")
         received_state = st.query_params.get("state")
         if auth_code:
-            if not received_state:
+            if not received_state or received_state != st.session_state.get("oauth_state"):
                 st.error("Erro de segurança: o 'state' da autenticação não corresponde. Tente novamente.")
                 st.stop()
             
             with st.spinner("A finalizar autenticação..."):
-                token_data = get_olx_token(CLIENT_ID, CLIENT_SECRET, auth_code, REDIRECT_URI)
+                token_data, user_name = get_olx_token(CLIENT_ID, CLIENT_SECRET, auth_code, REDIRECT_URI)
                 if token_data:
                     st.session_state.olx_token = token_data
+                    st.session_state.user_name = user_name
                     st.session_state.oauth_state = None
                     st.query_params.clear()
                     st.rerun()
         else:
             st.session_state.oauth_state = secrets.token_hex(16)
-            auth_url = f"{AUTHORIZE_URL}?response_type=code&client_id={CLIENT_ID}&scope=v2%20read%20write&state={st.session_state.oauth_state}&redirect_uri={REDIRECT_URI}"
-            st.sidebar.link_button("Autorizar com OLX 🔒", auth_url, use_container_width=True)
-            if not use_idealista: # Só mostra o 'stop' se nenhuma outra fonte estiver a carregar dados
+            auth_url = f"{AUTHORIZE_URL}?response_type=code&client_id={CLIENT_ID}&scope=v2%20read%20write&redirect_uri={REDIRECT_URI}&state={st.session_state.oauth_state}"
+            if not st.session_state.user_name: # Mostra o botão apenas se não estiver logado
+                st.sidebar.link_button("Autorizar com OLX 🔒", auth_url, use_container_width=True)
+            if not use_idealista:
                 st.info("A fonte OLX requer autorização. Por favor, clique no botão na barra lateral.")
                 st.stop()
             

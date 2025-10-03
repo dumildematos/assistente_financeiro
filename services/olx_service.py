@@ -2,6 +2,7 @@
 import requests
 import streamlit as st
 import logging
+import jwt
 
 def get_olx_token(client_id, client_secret, code, redirect_uri):
     """
@@ -26,20 +27,31 @@ def get_olx_token(client_id, client_secret, code, redirect_uri):
 
     try:
         response = requests.post(token_url, data=payload, headers=headers)
+        response.raise_for_status()
+        token_data = response.json()
         
-        # MUDANÇA: Adiciona um log para ver a resposta do servidor em caso de erro
-        if response.status_code != 200:
-            logging.error(f"OLX token request failed with status {response.status_code}.")
-            logging.error(f"Server response: {response.text}")
-            
-        response.raise_for_status() # Esta linha irá causar o erro se o status não for 2xx
-        
-        logging.info("Token do OLX obtido com sucesso via OAuth 2.0.")
-        return response.json()
+        # --- MUDANÇA: Descodifica o id_token para obter o nome ---
+        id_token = token_data.get("id_token")
+        user_name = None
+        if id_token:
+            try:
+                # Descodifica o JWT. A verificação da assinatura é ignorada aqui,
+                # pois confiamos na resposta direta e segura (HTTPS) do servidor do OLX.
+                decoded_token = jwt.decode(id_token, options={"verify_signature": False})
+                user_name = decoded_token.get("name") # O campo do nome pode variar (ex: "name", "given_name")
+                logging.info(f"Utilizador autenticado: {user_name}")
+            except jwt.exceptions.DecodeError as e:
+                logging.error(f"Erro ao descodificar o id_token: {e}")
+
+        # Retorna o dicionário completo do token e o nome do utilizador
+        return token_data, user_name
+        # --- Fim da Mudança ---
+
     except requests.exceptions.RequestException as e:
         logging.error(f"Erro ao obter o token do OLX: {e.response.text if e.response else e}")
         st.error(f"Erro ao obter o token do OLX. Verifique as credenciais e o redirect_uri.")
-        return None
+        return None, None
+
 def authenticate_olx_client(client_id, client_secret):
     """
     Autentica a aplicação usando o grant_type 'client_credentials'
