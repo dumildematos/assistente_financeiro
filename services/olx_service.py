@@ -8,14 +8,15 @@ def get_olx_token(client_id, client_secret, code, redirect_uri):
     """
     Troca o código de autorização por um access token, usando o fluxo authorization_code.
     """
-    token_url = "https://www.olx.pt/api/open/oauth/token"
+    token_url = "https://login.olx.pt/oauth2/token" #"https://www.olx.pt/api/open/oauth/token"
     
     payload = {
         "grant_type": "authorization_code",
-        "client_id": client_id,
-        "client_secret": client_secret,
+        "client_id": "3q2gr1va98i7rvd0l3kef2b6qg", #client_id,
+        "code_verifier": "ydZ4eSwffmtEvNY9FVQD7H~r~rG~vbaWMTJplORd0W8", # Necessário para PKCE, mas OLX não o usa realmente
+        #"client_secret": client_secret,
         "scope": "v2 read write",
-        "code": code,
+        "code": "b57ef6a4-21a6-4fd7-83af-4a0f53dbc90e", #code,
         "redirect_uri": redirect_uri
     }
     
@@ -29,7 +30,7 @@ def get_olx_token(client_id, client_secret, code, redirect_uri):
         response = requests.post(token_url, data=payload, headers=headers)
         response.raise_for_status()
         token_data = response.json()
-        
+        st.write(f"Token Data: {token_data}")  # Debug: Mostrar os dados do token
         # --- MUDANÇA: Descodifica o id_token para obter o nome ---
         id_token = token_data.get("id_token")
         user_name = None
