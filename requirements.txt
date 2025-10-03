@@ -3,3 +3,5 @@ google-generativeai
 pandas
 requests
 streamlit-modal
+streamlit-oauth
+

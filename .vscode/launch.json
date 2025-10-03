@@ -1,0 +1,15 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Streamlit Debug", // Dê um nome descritivo
+            "type": "debugpy",
+            "request": "launch",
+            "module": "streamlit", // Especifica que o módulo a executar é o streamlit
+            "args": [
+                "run",
+                "app.py" // O seu ficheiro principal
+            ]
+        }
+    ]
+}
